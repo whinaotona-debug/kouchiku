@@ -1,0 +1,14 @@
+---
+description: プッシュ時は GitHub Pages の URL まで出す
+alwaysApply: true
+---
+
+# プッシュしたら Pages の URL を出す
+
+ユーザーがこのリポジトリをプッシュするよう言ったら、ソースの push だけで終わらせない。`https://whinaotona-debug.github.io/damekei/` と同じ形の公開 URL を返せる状態にして、その URL を返事に書く。
+
+- リポジトリは `whinaotona-debug/kouchiku`。公開 URL は `https://whinaotona-debug.github.io/kouchiku/`。
+- `master` にソースを push する。`node_modules` と `dist` は push しない。
+- Pages は `gh-pages` ブランチのルート。ビルドは `VITE_BASE=/kouchiku/` を付けた `npx vite build`。`dist` に `.nojekyll` を置いてから `gh-pages` へ反映する。
+- Pages が未設定なら `gh-pages` の `/` をソースにして有効にする。
+- ワークフロー用のトークン権限はないので、GitHub Actions では公開しない。
