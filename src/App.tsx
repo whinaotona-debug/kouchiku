@@ -9,6 +9,30 @@ initCatalog(pokemonText, itemText)
 
 const STAT_LABEL = ["H", "A", "B", "C", "D", "S"]
 
+const KANA_VOWEL = new Map<string, string>()
+for (const [kana, vowel] of [
+  ["アカサタナハマヤラワガザダバパァャ", "ア"],
+  ["イキシチニヒミリギジヂビピィ", "イ"],
+  ["ウクスツヌフムユルグズヅブプゥュヴ", "ウ"],
+  ["エケセテネヘメレゲゼデベペェ", "エ"],
+  ["オコソトノホモヨロヲゴゾドボポォョ", "オ"],
+] as const) {
+  for (const char of kana) KANA_VOWEL.set(char, vowel)
+}
+
+function foldKana(value: string): string {
+  const katakana = value.replace(/[\u3041-\u3096]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 0x60))
+  let folded = ""
+  for (const char of katakana) {
+    if (char === "ー") {
+      folded += KANA_VOWEL.get(folded.slice(-1)) ?? char
+    } else {
+      folded += char
+    }
+  }
+  return folded
+}
+
 export default function App() {
   const mons = useMemo(() => getMons(), [])
   const [mode, setMode] = useState<Mode>("2")
@@ -28,9 +52,10 @@ export default function App() {
 
   const visible = useMemo(() => {
     const text = query.trim()
+    const folded = foldKana(text)
     return mons.filter((mon) => {
       if (typeName && !mon.types.includes(typeName)) return false
-      if (text && !mon.name.includes(text) && !String(mon.dex).includes(text)) return false
+      if (text && !foldKana(mon.name).includes(folded) && !String(mon.dex).includes(text)) return false
       return true
     })
   }, [mons, query, typeName])
@@ -78,7 +103,7 @@ export default function App() {
         <div className="filters">
           <label>
             名前
-            <input value={query} placeholder="カイリュー" onChange={(event) => setQuery(event.target.value)} />
+            <input value={query} placeholder="かいりゅう" onChange={(event) => setQuery(event.target.value)} />
           </label>
           <div className="types" aria-label="タイプ">
             <button className={typeName === "" ? "chip on" : "chip"} onClick={() => setTypeName("")} type="button">

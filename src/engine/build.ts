@@ -70,14 +70,18 @@ const WEIGHTS: Weights[] = [
 
 export function anchorThemes(name: string): Theme[] {
   const found = setsFor(name)
-  if (found.length) {
-    const themes = new Set<Theme>()
-    for (const set of found) for (const theme of set.themes) themes.add(theme)
-    return THEMES.filter((theme) => themes.has(theme))
+  if (!found.length) {
+    const mon = findMon(name)
+    if (!mon) return []
+    return estimate(mon).themes
   }
-  const mon = findMon(name)
-  if (!mon) return []
-  return estimate(mon).themes
+  const themes = new Set<Theme>()
+  for (const set of found) for (const theme of set.themes) themes.add(theme)
+  if (themes.size === 1 && themes.has("バトン")) {
+    themes.add("サイクル")
+    themes.add("対面")
+  }
+  return THEMES.filter((theme) => themes.has(theme))
 }
 
 export function buildNext(
@@ -617,7 +621,18 @@ function reasonFor(member: Placed, team: Placed[]): string {
 function chooseAnchor(name: string, theme: Theme, bias: number): SetData | null {
   const found = setsFor(name).filter((set) => set.themes.includes(theme))
   if (found.length) return found[bias % found.length]
-  if (setsFor(name).length) return null
+  const any = setsFor(name)
+  if (any.length && anchorThemes(name).includes(theme)) {
+    const base = any[bias % any.length]
+    return {
+      ...base,
+      themes: [theme],
+      moves: base.moves.filter((move) => move !== "バトンタッチ"),
+      role: base.offense === "physical" ? "物理アタッカー" : "特殊アタッカー",
+      intent: theme === "対面" ? "前に出て一致打点で通す。" : "交代しながら一致打点で役割を取る。",
+    }
+  }
+  if (any.length) return null
   const mon = findMon(name)
   if (!mon) return null
   const estimated = estimate(mon)
