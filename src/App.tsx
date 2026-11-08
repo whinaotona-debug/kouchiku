@@ -81,9 +81,12 @@ export default function App() {
   return (
     <div className="page">
       <header className="top">
-        <div>
-          <p className="eyebrow">Pokémon Champions</p>
-          <h1>構築サポート</h1>
+        <div className="brand">
+          <img className="mark" src={`${import.meta.env.BASE_URL}icon.jpg`} alt="" />
+          <div>
+            <p className="eyebrow">Pokémon Champions</p>
+            <h1>構築サポート</h1>
+          </div>
         </div>
         <p className="lead">1匹選ぶと、テーマとメンバーを分けた6匹を3つ組む。シングル。メガは1匹か2匹。</p>
       </header>

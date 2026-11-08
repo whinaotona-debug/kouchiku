@@ -27,6 +27,19 @@ button, input { font: inherit; }
   padding: 28px 0 64px;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
 .top h1 {
   margin: 0;
   font-size: 2rem;
