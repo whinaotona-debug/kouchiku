@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { FORM_ART } from "./form-art.ts"
 
 const TYPE_EN: Record<string, string> = {
   ノーマル: "normal",
@@ -168,9 +169,15 @@ function artwork(dex: number): string {
 }
 
 export function MonSprite({ name, dex }: { name: string; dex: number }) {
+  const formId = FORM_ART[name]
+  const preferred = formId ? artwork(formId) : artwork(dex)
   const cached = artCache.get(name)
-  const [src, setSrc] = useState(cached ?? artwork(dex))
+  const [src, setSrc] = useState(cached ?? preferred)
   useEffect(() => {
+    if (formId) {
+      artCache.set(name, preferred)
+      return
+    }
     const slug = FORM_SLUG[name]
     if (!slug || artCache.has(name)) return
     let cancel = false
@@ -186,8 +193,18 @@ export function MonSprite({ name, dex }: { name: string; dex: number }) {
     return () => {
       cancel = true
     }
-  }, [name])
-  return <img className="sprite" src={src} alt="" onError={() => setSrc(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dex}.png`)} />
+  }, [formId, name, preferred])
+  return (
+    <img
+      className="sprite"
+      src={src}
+      alt=""
+      onError={() => {
+        const base = artwork(dex)
+        if (src !== base) setSrc(base)
+      }}
+    />
+  )
 }
 
 export function TypeIcon({ type }: { type: string }) {

@@ -203,7 +203,7 @@ export default function App() {
                   <p className="role">{member.role}</p>
                   <p>{member.intent}</p>
                   <p className="reason">{member.reason}</p>
-                  {mode === "1" && !member.estimated ? (
+                  {mode === "1" && member.moves.length ? (
                     <>
                       <p>
                         {member.ability} / {member.nature}
@@ -213,9 +213,12 @@ export default function App() {
                         努力値 {member.points.map((value, stat) => `${STAT_LABEL[stat]}${value}`).join(" ")}
                       </p>
                       <p className="points">実数値 {member.stats.join(" / ")}（Lv50・個体値31）</p>
+                      {member.estimated ? <p className="reason">覚える技から仮に置いた型です。</p> : null}
                     </>
                   ) : null}
-                  {mode === "1" && member.estimated ? <p className="reason">確定の技と努力値がないので、数値は出していません。</p> : null}
+                  {mode === "1" && !member.moves.length ? (
+                    <p className="reason">確定の技と努力値がないので、数値は出していません。</p>
+                  ) : null}
                 </section>
               ))}
             </div>

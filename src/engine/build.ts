@@ -1,4 +1,5 @@
 import { findMon, hasItem } from "./catalog.ts"
+import { FALLBACK_MOVES } from "./fallback-moves.ts"
 import { calcStat, effectiveness, moveType, weaknesses } from "./chart.ts"
 import {
   MEGA_STONES,
@@ -99,7 +100,7 @@ export function buildNext(
   return runSearch(name, themes, mode, seed, index, avoid, new Set())
 }
 
-const BUDGET_MS: Record<Mode, number> = { "1": 50000, "2": 18000 }
+const SLOT_MS: Record<Mode, number> = { "1": 14000, "2": 5000 }
 
 export async function buildThree(
   name: string,
@@ -109,86 +110,63 @@ export async function buildThree(
 ): Promise<TeamResult[]> {
   const themes = anchorThemes(name)
   if (!themes.length || (name.startsWith("メガ") && !isMega(name))) return []
-  const deadline = Date.now() + BUDGET_MS[mode]
-  const bag: { team: TeamResult; score: number }[] = []
-  const seen = new Set<string>()
-  const maxRounds = mode === "1" ? 48 : 60
+  const shown: TeamResult[] = []
+  for (let slot = 0; slot < 3; slot += 1) {
+    const theme = themes[slot % themes.length]
+    const team = await searchSlot(name, theme, mode, seed, slot, shown)
+    if (!team) continue
+    shown.push(team)
+    onTeam(team)
+  }
+  return shown
+}
+
+async function searchSlot(
+  name: string,
+  theme: Theme,
+  mode: Mode,
+  seed: number,
+  slot: number,
+  shown: TeamResult[],
+): Promise<TeamResult | null> {
+  const deadline = Date.now() + SLOT_MS[mode]
+  const ban = new Set<string>()
+  const previous = shown[shown.length - 1]
+  if (previous) {
+    for (const member of previous.members) {
+      if (member.name === name) continue
+      ban.add(member.name)
+      if (ban.size >= 4) break
+    }
+  }
+  let best: { team: TeamResult; score: number } | null = null
   let round = 0
-  while (Date.now() < deadline && round < maxRounds) {
-    const theme = themes[round % themes.length]
-    const weights = WEIGHTS[round % WEIGHTS.length]
-    const rng = mulberry32((seed * 1009 + round * 97 + 11) >>> 0)
+  const rounds = mode === "1" ? 8 : 5
+  while (Date.now() < deadline && round < rounds) {
+    const weights = WEIGHTS[(slot + round) % WEIGHTS.length]
+    const rng = mulberry32((seed * 1009 + slot * 97 + round * 13 + 11) >>> 0)
     const found = searchMany(name, theme, weights, rng, {
-      beam: mode === "1" ? 16 : 8,
-      cap: mode === "1" ? 22 : 14,
-      limit: 3,
-      ban: bansFor(bag, name, round, themes.length),
-      drop: round < themes.length ? 0 : 2 + (round % 4),
-      repair: true,
+      beam: mode === "1" ? 14 : 8,
+      cap: mode === "1" ? 18 : 12,
+      limit: 2,
+      ban: round < 3 ? ban : new Set(),
+      drop: round === 0 ? 0 : 2,
+      repair: round === 0,
     })
     for (const entry of found) {
-      const key = `${entry.team.theme}|${fingerprint(entry.team)}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      bag.push(entry)
+      const crowded = shown.some((team) => sharedCount(team, entry.team) > (round < 3 ? 3 : 4))
+      if (crowded) continue
+      if (!best || entry.score > best.score) best = entry
     }
     round += 1
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
-  const picked = pickDiverse(bag, themes)
-  for (const team of picked) {
-    onTeam(team)
-    await new Promise((resolve) => setTimeout(resolve, 40))
-  }
-  return picked
-}
-
-function bansFor(
-  bag: { team: TeamResult }[],
-  anchor: string,
-  round: number,
-  themeCount: number,
-): Set<string> {
-  const ban = new Set<string>()
-  if (round < themeCount || bag.length < 2) return ban
-  const source = bag[round % bag.length]?.team
-  if (!source) return ban
-  for (const member of source.members) {
-    if (member.name === anchor) continue
-    ban.add(member.name)
-    if (ban.size >= 4) break
-  }
-  return ban
+  return best?.team ?? null
 }
 
 function sharedCount(a: TeamResult, b: TeamResult): number {
   const names = new Set(a.members.map((member) => member.name))
   return b.members.filter((member) => names.has(member.name)).length
-}
-
-function pickDiverse(bag: { team: TeamResult; score: number }[], themes: Theme[]): TeamResult[] {
-  const sorted = [...bag].sort((a, b) => b.score - a.score)
-  const chosen: { team: TeamResult; score: number }[] = []
-  const fits = (entry: { team: TeamResult }, limit: number) =>
-    chosen.every((current) => sharedCount(current.team, entry.team) <= limit)
-  for (const theme of themes) {
-    if (chosen.length >= 3) break
-    const next = sorted.find((entry) => entry.team.theme === theme && fits(entry, 3))
-    if (next) chosen.push(next)
-  }
-  for (const limit of [3, 4, 5, 6]) {
-    if (chosen.length >= 3) break
-    for (const entry of sorted) {
-      if (chosen.includes(entry)) continue
-      if (!fits(entry, limit)) continue
-      chosen.push(entry)
-      if (chosen.length >= 3) break
-    }
-  }
-  return chosen
-    .slice()
-    .sort((a, b) => b.score - a.score)
-    .map((entry) => entry.team)
 }
 
 function runSearch(
@@ -667,9 +645,9 @@ function estimate(mon: NonNullable<ReturnType<typeof findMon>>): SetData {
     items: stone ? [stone] : ["いのちのたま"],
     nature,
     points,
-    moves: [],
+    moves: FALLBACK_MOVES[mon.name] ?? [],
     role: offense === "physical" ? "物理アタッカー" : "特殊アタッカー",
-    intent: "種族値から仮に置いた型。技・性格・努力値の確定データはない。",
+    intent: "覚える技から仮に置いた型。性格と努力値も種族値からの仮置き。",
     answers: [],
     losesTo: [],
     partners: [],
